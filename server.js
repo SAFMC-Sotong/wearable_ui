@@ -1,24 +1,28 @@
-// UDP to WebSocket bridge server
-// Save this as server.js and run with: node server.js
+// server.js - Backend server for TEAM SOTONG DRONE ALPHA wearable UI interface
+// listens for UDP data and forwards it to connected web clients via WebSockets
+
 const dgram = require('dgram');
 const WebSocket = require('ws');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-// Create UDP server to listen for drone commands
-const UDP_PORT = 7880;  // The port that your Python code is sending to
+// Configuration
+const UDP_PORT = 7880;           // Port to listen for UDP data
+const WEB_PORT = 8080;           // Port for WebSocket and HTTP server
+const UDP_LISTEN_ADDR = '0.0.0.0'; // Listen on all interfaces
+
+// Create UDP server
 const udpServer = dgram.createSocket('udp4');
 
 // Create HTTP server to serve the HTML page
 const server = http.createServer((req, res) => {
-  // Serve the HTML file
-  if (req.url === '/' || req.url === '/index.html') {
+  if (req.url === '/') {
+    // Serve the HTML file
     fs.readFile(path.join(__dirname, 'index.html'), (err, data) => {
       if (err) {
         res.writeHead(500);
         res.end('Error loading index.html');
-        console.error('Error loading index.html:', err);
         return;
       }
       res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -32,26 +36,19 @@ const server = http.createServer((req, res) => {
 
 // Create WebSocket server
 const wss = new WebSocket.Server({ server });
+
+// Store connected WebSocket clients
 const clients = new Set();
 
-// Handle WebSocket connections
+// Handle new WebSocket connections
 wss.on('connection', (ws) => {
-  // Add new client to the set
+  console.log('Client connected');
   clients.add(ws);
-  console.log('WebSocket client connected');
   
-  // Send initial message to confirm connection
-  ws.send('SYSTEM CONNECTED');
-  
-  // Handle client messages (if needed)
-  ws.on('message', (message) => {
-    console.log('Received from client:', message.toString());
-  });
-  
-  // Handle disconnection
+  // Handle client disconnection
   ws.on('close', () => {
+    console.log('Client disconnected');
     clients.delete(ws);
-    console.log('WebSocket client disconnected');
   });
   
   // Handle errors
@@ -59,97 +56,93 @@ wss.on('connection', (ws) => {
     console.error('WebSocket error:', error);
     clients.delete(ws);
   });
+  
+  // Send initial message
+  ws.send(JSON.stringify({
+    type: 'udpData',
+    message: 'Waiting for drone data...'
+  }));
 });
 
-// Handle UDP messages
+// Set up UDP server
+udpServer.on('error', (err) => {
+  console.error(`UDP server error:\n${err.stack}`);
+  udpServer.close();
+});
+
+// Parse UDP packets from the drone
 udpServer.on('message', (msg, rinfo) => {
-  const message = msg.toString('utf8').trim();
-  console.log(`UDP message from ${rinfo.address}:${rinfo.port}: ${message}`);
+  console.log(`Received ${msg.length} bytes from ${rinfo.address}:${rinfo.port}`);
   
-  // Broadcast the message to all connected WebSocket clients
-  for (const client of clients) {
-    if (client.readyState === WebSocket.OPEN) {
-      try {
-        client.send(message);
-      } catch (error) {
-        console.error('Error sending to WebSocket client:', error);
-        clients.delete(client);
-      }
+  try {
+    // Convert Buffer to string
+    const dataStr = msg.toString('utf8');
+    console.log(`Data: ${dataStr}`);
+    
+    // Parse the message - format may vary based on your drone's protocol
+    // This is a simple example assuming the drone sends plain text data
+    
+    // Check for battery information
+    const batteryMatch = dataStr.match(/BAT[:]?\s*(\d+)/i);
+    if (batteryMatch && batteryMatch[1]) {
+      const batteryLevel = parseInt(batteryMatch[1], 10);
+      
+      // Send battery update to all clients
+      broadcastToAll({
+        type: 'batteryLevel',
+        level: batteryLevel
+      });
     }
+    
+    // Send the data to all connected WebSocket clients
+    broadcastToAll({
+      type: 'udpData',
+      message: dataStr.trim()
+    });
+  } catch (error) {
+    console.error('Error processing UDP message:', error);
   }
 });
 
-// Start UDP server
-udpServer.on('listening', () => {
+// Function to broadcast message to all connected WebSocket clients
+function broadcastToAll(data) {
+  const message = JSON.stringify(data);
+  
+  clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+}
+
+// Start the UDP server
+udpServer.bind(UDP_PORT, UDP_LISTEN_ADDR, () => {
   const address = udpServer.address();
   console.log(`UDP server listening on ${address.address}:${address.port}`);
 });
 
-udpServer.on('error', (error) => {
-  console.error('UDP server error:', error);
+// Start the WebSocket/HTTP server
+server.listen(WEB_PORT, () => {
+  console.log(`WebSocket/HTTP server started on port ${WEB_PORT}`);
 });
 
-// Bind UDP server to port
-try {
-  udpServer.bind(UDP_PORT);
-} catch (error) {
-  console.error('Failed to bind UDP server:', error);
-  process.exit(1);
-}
-
-// Start HTTP server
-const PORT = 8080;
-server.listen(PORT, () => {
-  console.log(`HTTP/WebSocket server running on http://localhost:${PORT}`);
-});
-
-// Send a heartbeat to all clients every 30 seconds to keep connections alive
-setInterval(() => {
-  const timestamp = new Date().toISOString();
-  const heartbeat = `HEARTBEAT ${timestamp}`;
-  
-  let activeClients = 0;
-  for (const client of clients) {
-    if (client.readyState === WebSocket.OPEN) {
-      try {
-        client.send(heartbeat);
-        activeClients++;
-      } catch (error) {
-        console.error('Error sending heartbeat:', error);
-        clients.delete(client);
-      }
-    }
-  }
-  
-  console.log(`Sent heartbeat to ${activeClients} clients`);
-}, 30000);
-
-// Handle shutdown gracefully
+// Handle graceful shutdown
 process.on('SIGINT', () => {
   console.log('Shutting down servers...');
   
-  // Close all WebSocket connections
-  for (const client of clients) {
-    try {
-      client.close();
-    } catch (e) {
-      // Ignore errors on close
-    }
-  }
-  
-  // Close servers
-  udpServer.close(() => {
-    console.log('UDP server closed');
+  // Close WebSocket server
+  wss.close(() => {
+    console.log('WebSocket server closed');
+    
+    // Close HTTP server
+    server.close(() => {
+      console.log('HTTP server closed');
+      
+      // Close UDP server
+      udpServer.close(() => {
+        console.log('UDP server closed');
+        process.exit(0);
+      });
+    });
   });
-  
-  server.close(() => {
-    console.log('HTTP/WebSocket server closed');
-    process.exit(0);
-  });
-  
-  // Force exit after timeout if servers don't close cleanly
-  setTimeout(() => {
-    console.log('Forcing exit after timeout');
-    process.exit(1);
-  }, 3000);
 });

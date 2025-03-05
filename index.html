@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>TEAM SOTONG: DRONE ALPHA</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 8px;
+      font-family: Arial, sans-serif;
+      background-color: #111;
+      color: #fff;
+      width: 320px;
+      height: 240px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 18px;
+    }
+    .battery-container {
+      display: flex;
+      align-items: center;
+    }
+    .battery-body {
+      position: relative;
+      width: 30px;
+      height: 18px;
+      border: 2px solid #fff;
+      border-radius: 2px;
+    }
+    .battery-cap {
+      width: 3px;
+      height: 10px;
+      background-color: #fff;
+      margin-left: 1px;
+      border-radius: 0 2px 2px 0;
+    }
+    .battery-level {
+      position: absolute;
+      height: 14px;
+      background-color: #4CAF50;
+      top: 2px;
+      left: 2px;
+      border-radius: 1px;
+      transition: width 0.5s;
+    }
+    .battery-percentage {
+      margin-left: 5px;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    .video-container {
+      width: 100%;
+      height: 140px;
+      background-color: #222;
+      border: 1px solid #444;
+      border-radius: 5px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: #666;
+    }
+    .data-display {
+      background-color: #222;
+      border: 1px solid #444;
+      border-radius: 5px;
+      padding: 6px;
+      width: 100%;
+      height: 40px;
+      overflow: hidden;
+      font-family: monospace;
+      font-size: 12px;
+      box-sizing: border-box;
+    }
+    .command-history {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: #4CAF50;
+      font-family: monospace;
+      font-size: 14px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>TEAM SOTONG: DRONE ALPHA</h1>
+    <div class="battery-container">
+      <div class="battery-body">
+        <div class="battery-level" id="batteryLevel"></div>
+      </div>
+      <div class="battery-cap"></div>
+      <div class="battery-percentage" id="batteryPercentage">75%</div>
+    </div>
+  </div>
+  
+  <div class="video-container" id="videoContainer">
+    <div class="command-history" id="commandHistory"></div>
+    Voice Command Status: LISTENING
+  </div>
+  
+  <div class="data-display" id="dataDisplay">Waiting for UDP data...</div>
+
+  <script>
+    // Initial battery level
+    let batteryPercentage = 75;
+    updateBattery(batteryPercentage);
+    
+    // Set up battery drain - 2% every minute
+    let batteryDrainInterval = setInterval(() => {
+      // Decrease battery by 2%
+      batteryPercentage = Math.max(0, batteryPercentage - 2);
+      updateBattery(batteryPercentage);
+      
+      // Optional: reset battery when it gets too low
+      if (batteryPercentage <= 0) {
+        batteryPercentage = 100;
+        updateBattery(batteryPercentage);
+        receiveUDPData("BATTERY REPLACED - SYSTEM RESET");
+      }
+    }, 60000); // 60000ms = 1 minute
+    
+    // History of last 5 commands
+    let commandHistory = [];
+    const MAX_HISTORY = 5;
+    
+    function updateBattery(percentage) {
+      const level = document.getElementById('batteryLevel');
+      const text = document.getElementById('batteryPercentage');
+      
+      level.style.width = (percentage * 26 / 100) + 'px';
+      text.textContent = percentage + '%';
+      
+      // Change color based on battery level
+      if (percentage > 60) {
+        level.style.backgroundColor = '#4CAF50'; // Green
+      } else if (percentage > 30) {
+        level.style.backgroundColor = '#FFC107'; // Yellow
+      } else {
+        level.style.backgroundColor = '#F44336'; // Red
+      }
+    }
+    
+    function receiveUDPData(data) {
+      const display = document.getElementById('dataDisplay');
+      const timestamp = new Date().toLocaleTimeString();
+      display.innerHTML = `[${timestamp}] ${data}`;
+      
+      // Add command to history
+      commandHistory.unshift(data);
+      if (commandHistory.length > MAX_HISTORY) {
+        commandHistory.pop();
+      }
+      
+      // Update command history display
+      updateCommandHistory();
+      
+      // Highlight the command
+      highlightCommand();
+    }
+    
+    function updateCommandHistory() {
+      const historyElement = document.getElementById('commandHistory');
+      historyElement.innerHTML = commandHistory.map(cmd => `> ${cmd}`).join('<br>');
+    }
+    
+    function highlightCommand() {
+      // Flash the video container to indicate command received
+      const videoContainer = document.getElementById('videoContainer');
+      videoContainer.style.backgroundColor = '#003300';
+      
+      setTimeout(() => {
+        videoContainer.style.backgroundColor = '#222';
+      }, 300);
+    }
+    
+    // Connect to WebSocket server when the page loads
+    let socket = null;
+    let reconnectAttempt = 0;
+    
+    function connectWebSocket() {
+      // Connect to your WebSocket server
+      socket = new WebSocket('ws://localhost:8080');
+      
+      socket.onopen = function() {
+        console.log('WebSocket connection established');
+        document.getElementById('dataDisplay').innerHTML = 'Connected to voice control system...';
+        reconnectAttempt = 0;
+      };
+      
+      socket.onmessage = function(event) {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'udpData') {
+            // This will display the UDP messages sent from the Python script
+            receiveUDPData(data.message);
+          } else if (data.type === 'batteryLevel') {
+            updateBattery(data.level);
+          }
+        } catch (error) {
+          console.error('Error parsing message:', error);
+          // If not JSON, try to display as raw text
+          receiveUDPData(event.data);
+        }
+      };
+      
+      socket.onclose = function() {
+        console.log('WebSocket connection closed');
+        // Try to reconnect with exponential backoff
+        const timeout = Math.min(30000, Math.pow(2, reconnectAttempt) * 1000);
+        reconnectAttempt++;
+        console.log(`Attempting to reconnect in ${timeout/1000} seconds...`);
+        setTimeout(connectWebSocket, timeout);
+      };
+      
+      socket.onerror = function(error) {
+        console.error('WebSocket error:', error);
+      };
+    }
+    
+    // Try to connect to WebSocket server
+    connectWebSocket();
+  </script>
+</body>
+</html>
