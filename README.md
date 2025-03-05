@@ -3,6 +3,8 @@ GUI Interface for Wearable
 
 Designed for a TFT screen of 320x240 running on a Raspberry Pi 
 
+![UI on TFT Screen](images/ui_screen.jpg)
+
 ## Setup
 ### TFT Screen Setup
 
@@ -22,3 +24,8 @@ For testing of voice control system:
 
 1. **Change IP address of drone where appropriate**
 2. 
+
+## TODO
+1. Enable camera streaming from Jetson to UI (look into webrtc)
+2. Add actual data (battery, mode etc) from drone to UI (possibly through subscription of topic in mavros on drone to UDP to UI)
+3. Tune colour and resolution of screen 
