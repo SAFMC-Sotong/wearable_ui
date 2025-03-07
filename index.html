@@ -68,6 +68,23 @@
       margin-bottom: 8px;
       font-size: 12px;
       color: #666;
+      position: relative;
+      overflow: hidden;
+    }
+    .video-feed {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .stream-status {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      background-color: rgba(0, 0, 0, 0.5);
+      color: #4CAF50;
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-size: 10px;
     }
     .data-display {
       background-color: #222;
@@ -89,6 +106,10 @@
       font-family: monospace;
       font-size: 14px;
       display: none;
+      z-index: 10;
+      background-color: rgba(0, 0, 0, 0.5);
+      padding: 3px;
+      border-radius: 3px;
     }
   </style>
 </head>
@@ -106,7 +127,8 @@
   
   <div class="video-container" id="videoContainer">
     <div class="command-history" id="commandHistory"></div>
-    Voice Command Status: LISTENING
+    <img src="/video-stream" class="video-feed" id="videoFeed" />
+    <div class="stream-status" id="streamStatus">LIVE</div>
   </div>
   
   <div class="data-display" id="dataDisplay">Waiting for UDP data...</div>
@@ -175,22 +197,47 @@
     }
     
     function highlightCommand() {
-      // Flash the video container to indicate command received
-      const videoContainer = document.getElementById('videoContainer');
-      videoContainer.style.backgroundColor = '#003300';
+      // Flash the command history to indicate command received
+      const commandHistory = document.getElementById('commandHistory');
+      commandHistory.style.display = 'block';
       
       setTimeout(() => {
-        videoContainer.style.backgroundColor = '#222';
-      }, 300);
+        commandHistory.style.display = 'none';
+      }, 3000);
     }
+    
+    // Video stream error handling
+    const videoFeed = document.getElementById('videoFeed');
+    const streamStatus = document.getElementById('streamStatus');
+    
+    videoFeed.onerror = function() {
+      console.error('Video stream error');
+      streamStatus.textContent = 'NO SIGNAL';
+      streamStatus.style.color = '#F44336';
+      
+      // Try to reconnect after 5 seconds
+      setTimeout(() => {
+        console.log('Attempting to reconnect to video stream...');
+        videoFeed.src = '/video-stream?' + new Date().getTime(); // Add cache-busting parameter
+      }, 5000);
+    };
+    
+    videoFeed.onload = function() {
+      streamStatus.textContent = 'LIVE';
+      streamStatus.style.color = '#4CAF50';
+    };
     
     // Connect to WebSocket server when the page loads
     let socket = null;
     let reconnectAttempt = 0;
     
     function connectWebSocket() {
+      // Get the host from the current page URL
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = protocol + '//' + window.location.host;
+      
       // Connect to your WebSocket server
-      socket = new WebSocket('ws://localhost:8080');
+      socket = new WebSocket(wsUrl);
       
       socket.onopen = function() {
         console.log('WebSocket connection established');
