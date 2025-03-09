@@ -27,6 +27,10 @@ For testing the camera with a loopback IP on a Rasp Pi:
 ```
 rpicam-vid -t 0 -n --width 320 --height 240 --vflip --sharpness 2.0 --codec mjpeg --quality 100 --inline -o - |   gst-launch-1.0 fdsrc fd=0 !   jpegparse !   udpsink host=127.0.0.1 port=5000
 ```
+With another terminal:
+```
+gst-launch-1.0 udpsrc port=5000 ! application/x-rtp ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! jpegenc ! multipartmux ! tcpserversink host=0.0.0.0 port=8090
+```
 
 ## Things to Note:
 
