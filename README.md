@@ -29,7 +29,7 @@ gst-launch-1.0 nvarguscamerasrc sensor-id=0 ! 'video/x-raw(memory:NVMM), width=3
 **Quality set to 100% will cause each packet to exceed the UDP packet size limit. The limit has not been tested but 60% works. Potentially TCP works as well.**
 
 ## For testing only:
-# For testing the camera with a loopback IP on a Rasp Pi (open on UI):
+### For testing the camera with a loopback IP on a Rasp Pi (open on UI):
 ```
 rpicam-vid -t 0 -n --width 320 --height 240 --vflip --sharpness 2.0 --codec mjpeg --quality 100 --inline -o - |   gst-launch-1.0 fdsrc fd=0 !   jpegparse !   udpsink host=127.0.0.1 port=5000
 ```
@@ -38,7 +38,7 @@ With another terminal:
 gst-launch-1.0 udpsrc port=5000 ! h264parse ! avdec_h264 ! videoconvert ! jpegenc ! multipartmux ! tcpserversink host=0.0.0.0 port=8090
 ```
 
-# For testing the Jetson CSI camera stream:
+### For testing the Jetson CSI camera stream:
 With [jetson-inference](https://github.com/dusty-nv/jetson-inference/blob/master/docs/aux-streaming.md) library: ```video-viewer csi://0 ```
 
 With [Nvidia Gstreamer](https://docs.nvidia.com/jetson/archives/r35.2.1/DeveloperGuide/text/SD/Multimedia/GstreamerBasedCameraCapture.html) : ```nvgstcapture-1.0``` 
