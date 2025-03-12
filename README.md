@@ -35,7 +35,8 @@ rpicam-vid -t 0 -n --width 320 --height 240 --vflip --sharpness 2.0 --codec mjpe
 ```
 With another terminal:
 ```
-gst-launch-1.0 udpsrc port=5000 ! h264parse ! avdec_h264 ! videoconvert ! jpegenc ! multipartmux ! tcpserversink host=0.0.0.0 port=8090
+gst-launch-1.0 udpsrc port=5000 ! jpegparse ! jpegdec ! videoconvert ! jpegenc ! multipartmux ! tcpserversink host=0.0.0.0 port=8090
+
 ```
 
 ### For testing the Jetson CSI camera stream:
