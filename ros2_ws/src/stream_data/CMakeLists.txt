@@ -10,6 +10,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(mavros_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 # Create executable
 add_executable(stream_data src/stream_data.cpp)

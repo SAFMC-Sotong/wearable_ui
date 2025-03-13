@@ -11,7 +11,7 @@ def generate_launch_description():
             emulate_tty=True,
             parameters=[
                 {
-                    'battery_topic': '/mavros/battery',
+                    'battery_topic': '/mavros/battery_state',
                     'state_topic': '/mavros/state',
                     'update_rate_ms': 100,
                     'battery_udp_ip': '10.42.0.104',
